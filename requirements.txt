@@ -1,0 +1,22 @@
+# GP-UCB experiment dependencies
+# Install inside a virtualenv:
+#   python -m venv venv
+#   source venv/bin/activate
+#   pip install -r requirements.txt
+
+# Core GP library
+gpytorch==1.13.0
+
+# PyTorch (CPU-only build — saves disk space on the cluster)
+# If your cluster's module system provides a PyTorch module, load that instead
+# and remove the torch line below to avoid conflicts.
+torch==2.3.1+cpu
+--extra-index-url https://download.pytorch.org/whl/cpu
+
+# Numerics & plotting
+numpy>=1.26,<2.0
+matplotlib>=3.8,<4.0
+scipy>=1.12           # used by some GPyTorch internals; good to pin
+
+# Optional but useful on clusters
+tqdm>=4.66            # progress bars if you add them
