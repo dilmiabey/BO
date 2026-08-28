@@ -1,33 +1,25 @@
 #!/bin/bash
 #SBATCH --job-name=gpucb
 #SBATCH --account=ih70
-#SBATCH --partition=comp          # CPU partition — adjust if your cluster uses a different name
-#SBATCH --time=02:00:00           # 2h is generous; each seed typically takes ~20-40 min
+#SBATCH --partition=comp          # CPU partition — adjust if needed (sinfo)
+#SBATCH --time=04:00:00           # L-BFGS is slower than grid search; 4h is safe
 #SBATCH --mem=8G
-#SBATCH --cpus-per-task=4         # GPyTorch uses MKL threads; 4 is a good balance
+#SBATCH --cpus-per-task=4
 #SBATCH --array=0-4               # 5 jobs, one per seed (seeds 0..4)
 #SBATCH --output=logs/%x_%a_%j.out
 #SBATCH --error=logs/%x_%a_%j.err
 
 # ==========================================================================
-# GP-UCB experiment  |  5 seeds × 2 benchmarks × 2 noise types × 2 algos
+# GP-UCB experiment  |  L-BFGS acquisition optimisation
+# 5 seeds x 2 benchmarks x 2 noise types x 2 algorithms = 40 trials
 #
-#  Array task ID = seed index
+# Each array task = one seed, runs all 8 configs sequentially.
 #
-#  Each job runs all 8 configurations for its seed:
-#    sine     × homo   × gpucb
-#    sine     × homo   × gpucb_pv
-#    sine     × hetero × gpucb
-#    sine     × hetero × gpucb_pv
-#    branin   × homo   × gpucb
-#    branin   × homo   × gpucb_pv
-#    branin   × hetero × gpucb
-#    branin   × hetero × gpucb_pv
+# Acquisition optimisation:
+#   --n_restarts 10   : 10 random starting points per BO iteration
+#   --lbfgs_steps 100 : up to 100 L-BFGS steps per restart
 #
-#  Results written to:
-#    results/seed_{seed}/{benchmark}_{noise}_{algorithm}.npy
-#
-#  After all 5 jobs complete, run plot_results.py separately (see README).
+# Results: results/seed_{seed}/{benchmark}_{noise}_{algorithm}.npy
 # ==========================================================================
 
 PROJECT_DIR=/scratch2/ih70/dilmia/PROJECT_2/gpucb
@@ -51,16 +43,16 @@ echo "CPUs      : $SLURM_CPUS_PER_TASK"
 echo "=========================================="
 
 export PYTHONUNBUFFERED=1
-# Limit MKL/OpenBLAS threads to match allocated CPUs
 export MKL_NUM_THREADS=$SLURM_CPUS_PER_TASK
 export OMP_NUM_THREADS=$SLURM_CPUS_PER_TASK
 
 python run_seed.py \
-    --seed          $SEED          \
-    --results_dir   $PROJECT_DIR/results \
-    --n_init        5              \
-    --n_iter        50             \
-    --n_cand        2000           \
+    --seed          $SEED                  \
+    --results_dir   $PROJECT_DIR/results   \
+    --n_init        5                      \
+    --n_iter        50                     \
+    --n_restarts    10                     \
+    --lbfgs_steps   100                    \
     --gp_train_iter 50
 
 echo "=========================================="

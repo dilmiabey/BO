@@ -7,15 +7,15 @@ Usage:
     python run_seed.py --seed 0 --results_dir results --n_iter 50
 
 The 8 configurations are:
-    benchmark  × noise_type × algorithm
-    sine       × homo       × gpucb
-    sine       × homo       × gpucb_pv
-    sine       × hetero     × gpucb
-    sine       × hetero     × gpucb_pv
-    branin     × homo       × gpucb
-    branin     × homo       × gpucb_pv
-    branin     × hetero     × gpucb
-    branin     × hetero     × gpucb_pv
+    benchmark  x noise_type x algorithm
+    sine       x homo       x gpucb
+    sine       x homo       x gpucb_pv
+    sine       x hetero     x gpucb
+    sine       x hetero     x gpucb_pv
+    branin     x homo       x gpucb
+    branin     x homo       x gpucb_pv
+    branin     x hetero     x gpucb
+    branin     x hetero     x gpucb_pv
 
 Results are stored as:
     results_dir/seed_{seed}/{benchmark}_{noise}_{algorithm}.npy
@@ -29,18 +29,21 @@ import numpy as np
 
 from experiment import TrialConfig, run_trial
 
-BENCHMARKS = ["sine", "branin"]
+BENCHMARKS  = ["sine", "branin"]
 NOISE_TYPES = ["homo", "hetero"]
 ALGORITHMS  = ["gpucb", "gpucb_pv"]
 
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--seed",        type=int, default=0)
-    parser.add_argument("--results_dir", type=str, default="results")
-    parser.add_argument("--n_init",      type=int, default=5)
-    parser.add_argument("--n_iter",      type=int, default=50)
-    parser.add_argument("--n_cand",      type=int, default=2000)
+    parser.add_argument("--seed",          type=int, default=0)
+    parser.add_argument("--results_dir",   type=str, default="results")
+    parser.add_argument("--n_init",        type=int, default=5)
+    parser.add_argument("--n_iter",        type=int, default=50)
+    parser.add_argument("--n_restarts",    type=int, default=10,
+                        help="Number of L-BFGS random restarts per BO iteration")
+    parser.add_argument("--lbfgs_steps",   type=int, default=100,
+                        help="Max L-BFGS iterations per restart")
     parser.add_argument("--gp_train_iter", type=int, default=50)
     args = parser.parse_args()
 
@@ -55,7 +58,7 @@ def main():
     ]
 
     for bench, noise, algo in configs:
-        tag = f"{bench}_{noise}_{algo}"
+        tag      = f"{bench}_{noise}_{algo}"
         out_path = os.path.join(out_dir, f"{tag}.npy")
 
         if os.path.exists(out_path):
@@ -66,14 +69,15 @@ def main():
         t0 = time.time()
 
         cfg = TrialConfig(
-            benchmark=bench,
-            noise_type=noise,
-            algorithm=algo,
-            seed=args.seed,
-            n_init=args.n_init,
-            n_iter=args.n_iter,
-            n_cand=args.n_cand,
-            gp_train_iter=args.gp_train_iter,
+            benchmark     = bench,
+            noise_type    = noise,
+            algorithm     = algo,
+            seed          = args.seed,
+            n_init        = args.n_init,
+            n_iter        = args.n_iter,
+            n_restarts    = args.n_restarts,
+            lbfgs_steps   = args.lbfgs_steps,
+            gp_train_iter = args.gp_train_iter,
         )
 
         f_vals = run_trial(cfg)
