@@ -1,0 +1,24 @@
+# ── Config 1: Warm start, candidate optimisation, current noise ────────────
+experiment:
+  name: "warm_candidate_current"
+  n_iter: 50
+start:
+  type: "warm"
+  n_init: 5
+surrogate:
+  gp_train_iter: 50
+  learning_rate: 0.1
+  prior_mean: 0.0
+  prior_var: 1.0
+optimization:
+  method: "candidate"
+  n_candidates: 2000
+noise:
+  source: "current"
+beta:
+  type: "srinivas"
+  delta: 0.1
+benchmarks: ["sine", "branin"]
+noise_types: ["homo", "hetero"]
+algorithms: ["gpucb", "gpucb_pv"]
+seeds: [0, 1, 2, 3, 4]

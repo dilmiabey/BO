@@ -1,0 +1,25 @@
+# ── Config 4: Cold start, candidate optimisation, reference noise, beta=2 ─
+# Reference: Makarova, Usmanova, Bogunovic, Krause (NeurIPS 2021)
+# Heteroscedastic only.  Constant exploration parameter.
+experiment:
+  name: "cold_candidate_reference_beta2"
+  n_iter: 50
+start:
+  type: "cold"
+surrogate:
+  gp_train_iter: 50
+  learning_rate: 0.1
+  prior_mean: 0.0
+  prior_var: 1.0
+optimization:
+  method: "candidate"
+  n_candidates: 2000
+noise:
+  source: "reference"
+beta:
+  type: "constant"
+  value: 2.0
+benchmarks: ["sine", "branin"]
+noise_types: ["hetero"]
+algorithms: ["gpucb", "gpucb_pv"]
+seeds: [0, 1, 2, 3, 4]

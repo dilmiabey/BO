@@ -1,41 +1,11 @@
-# ── Virtual environment ────────────────────────────────────────────────────
 venv/
-env/
-.venv/
-.env/
-
-# ── Python cache ───────────────────────────────────────────────────────────
 __pycache__/
 *.py[cod]
-*.pyo
-*.pyd
-*.egg-info/
-dist/
-build/
-*.egg
-.eggs/
-
-# ── Experiment outputs ─────────────────────────────────────────────────────
 results/
 plots/
-
-# ── Slurm logs ─────────────────────────────────────────────────────────────
 logs/
 *.out
 *.err
-
-# ── Jupyter ────────────────────────────────────────────────────────────────
-.ipynb_checkpoints/
-*.ipynb
-
-# ── macOS / IDE ────────────────────────────────────────────────────────────
 .DS_Store
 .idea/
 .vscode/
-*.swp
-*.swo
-
-# ── NumPy binary outputs (tracked explicitly if desired) ──────────────────
-# Uncomment to ignore .npy files
-# *.npy
-# *.npz

@@ -17,6 +17,6 @@ torch==2.3.1+cpu
 numpy>=1.26,<2.0
 matplotlib>=3.8,<4.0
 scipy>=1.12           # used by some GPyTorch internals; good to pin
-
+pyyaml>=6.0
 # Optional but useful on clusters
 tqdm>=4.66            # progress bars if you add them
