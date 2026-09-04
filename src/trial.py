@@ -100,15 +100,14 @@ def run_trial(cfg: dict) -> np.ndarray:
             )
         else:
             # Fit GP on the n observations in D_n
-            if n <= 1:
-                noise_var_init = 0.01
-            else:
-                noise_var_init = float(train_y.var().clamp(min=1e-4)) * 0.1
             model, likelihood = fit_gp(
                 train_x, train_y,
-                n_iter=cfg["gp_train_iter"],
+                learn_hyperparams=cfg.get("learn_hyperparams", False),
+                n_iter=cfg.get("gp_train_iter", 50),
                 lr=cfg.get("gp_lr", 0.1),
-                noise_var=noise_var_init,
+                output_scale=cfg.get("output_scale", 1.0),
+                lengthscale=cfg.get("lengthscale", 1.0),
+                noise_var=cfg.get("noise_var", 0.1),
             )
             predict_fn = make_gp_predict_fn(model, likelihood)
 
