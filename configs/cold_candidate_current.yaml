@@ -5,8 +5,8 @@ experiment:
 start:
   type: "cold"
 surrogate:
-  gp_train_iter: 50
-  learning_rate: 0.1
+  output_scale: 1.0
+  lengthscale: 1.0
   prior_mean: 0.0
   prior_var: 1.0
 optimization:

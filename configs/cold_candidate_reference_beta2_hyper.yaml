@@ -1,0 +1,24 @@
+# cold_candidate_reference_beta2
+experiment:
+  name: "cold_candidate_reference_beta2_hyper"
+  n_iter: 50
+start:
+  type: "cold"
+surrogate:
+  output_scale: .5
+  lengthscale: .5
+  prior_mean: 0.0
+  prior_var: 1.0
+optimization:
+  method: "candidate"
+  n_candidates: 2000
+noise:
+  source: "reference"
+beta:
+  type: "constant"
+  value: 2.0
+  delta: 0.1
+benchmarks: ["sine", "branin"]
+noise_types: ["hetero"]
+algorithms: ["gpucb", "gpucb_pv"]
+seeds: [0, 1, 2, 3, 4]

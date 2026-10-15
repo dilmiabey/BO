@@ -1,14 +1,12 @@
-# ── Config 4: Cold start, candidate, reference noise, beta=2, fixed hypers ─
+# cold_candidate_reference_beta2
 experiment:
   name: "cold_candidate_reference_beta2"
   n_iter: 50
 start:
   type: "cold"
 surrogate:
-  learn_hyperparams: false    # fixed hyperparameters (default)
-  output_scale: 0.5           # sigma_f^2
-  lengthscale: 0.5            # ell
-  noise_var: 0.1              # likelihood noise
+  output_scale: 1.0
+  lengthscale: 1.0
   prior_mean: 0.0
   prior_var: 1.0
 optimization:
@@ -19,6 +17,7 @@ noise:
 beta:
   type: "constant"
   value: 2.0
+  delta: 0.1
 benchmarks: ["sine", "branin"]
 noise_types: ["hetero"]
 algorithms: ["gpucb", "gpucb_pv"]

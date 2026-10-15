@@ -3,9 +3,9 @@ src/surrogate.py
 ================
 Gaussian process model (exact GP, RBF kernel) via GPyTorch.
 
-Supports two modes:
-  - learn_hyperparams=True:  optimise sigma_f^2, ell, noise via MLL (Adam)
-  - learn_hyperparams=False: use fixed hyperparameters (default)
+Hyperparameters (output_scale, lengthscale) are fixed — not learned.
+The observation noise covariance Lambda_n = diag(rho(x_1),...,rho(x_n))
+is passed in directly, so the GP uses the exact heteroscedastic noise.
 """
 
 import torch
@@ -29,43 +29,34 @@ class ExactGPModel(gpytorch.models.ExactGP):
         )
 
 
-def fit_gp(train_x: torch.Tensor, train_y: torch.Tensor,
-           learn_hyperparams: bool = False,
-           n_iter: int = 50, lr: float = 0.1,
+def fit_gp(train_x: torch.Tensor,
+           train_y: torch.Tensor,
+           rho_train: torch.Tensor,
            output_scale: float = 1.0,
-           lengthscale: float = 1.0,
-           noise_var: float = 0.1):
+           lengthscale: float = 1.0):
     """
-    Build and (optionally) train an exact GP.
+    Build an exact GP with fixed hyperparameters and exact noise covariance.
 
     Parameters
     ----------
-    learn_hyperparams : if False (default), set fixed hyperparameters
-                        and skip optimisation.
-                        if True, optimise via marginal likelihood.
-    output_scale      : sigma_f^2  (used as fixed value, or as initialisation)
-    lengthscale       : ell        (used as fixed value, or as initialisation)
-    noise_var         : likelihood noise  (used as fixed value, or as initialisation)
+    train_x      : (n, d) input points
+    train_y      : (n,)   noisy observations
+    rho_train    : (n,)   exact noise variances rho(x_i) at training points
+                          used to set Lambda_n = diag(rho(x_1),...,rho(x_n))
+    output_scale : sigma_f^2  (fixed)
+    lengthscale  : ell        (fixed)
     """
-    likelihood = gpytorch.likelihoods.GaussianLikelihood()
+    # GPyTorch's FixedNoiseGaussianLikelihood accepts per-point noise variances
+    likelihood = gpytorch.likelihoods.FixedNoiseGaussianLikelihood(
+        noise=rho_train,
+        learn_additional_noise=False,
+    )
 
-    # Set hyperparameters
-    likelihood.noise = noise_var
     model = ExactGPModel(train_x, train_y, likelihood)
+
+    # Set fixed hyperparameters
     model.covar_module.outputscale = output_scale
     model.covar_module.base_kernel.lengthscale = lengthscale
-
-    if learn_hyperparams:
-        model.train()
-        likelihood.train()
-        optimiser = torch.optim.Adam(model.parameters(), lr=lr)
-        mll = gpytorch.mlls.ExactMarginalLogLikelihood(likelihood, model)
-        for _ in range(n_iter):
-            optimiser.zero_grad()
-            output = model(train_x)
-            loss = -mll(output, train_y)
-            loss.backward()
-            optimiser.step()
 
     model.eval()
     likelihood.eval()
@@ -73,9 +64,7 @@ def fit_gp(train_x: torch.Tensor, train_y: torch.Tensor,
 
 
 def make_gp_predict_fn(model, likelihood) -> PredictFn:
-    """
-    Returns a differentiable predict function (x -> (mu, sigma2)).
-    """
+    """Returns a differentiable predict function (x -> (mu, sigma2))."""
     def predict_fn(x: torch.Tensor):
         with gpytorch.settings.fast_pred_var():
             pred = likelihood(model(x))
@@ -85,12 +74,10 @@ def make_gp_predict_fn(model, likelihood) -> PredictFn:
 
 def make_prior_predict_fn(prior_mean: float = 0.0,
                           prior_var: float = 1.0) -> PredictFn:
-    """
-    Constant prior predict function for cold-start first iteration.
-    """
+    """Constant prior for cold-start first iteration (no data yet)."""
     def predict_fn(x: torch.Tensor):
         n = x.shape[0]
-        mu = torch.full((n,), prior_mean, dtype=x.dtype)
-        sigma2 = torch.full((n,), prior_var, dtype=x.dtype)
+        mu     = torch.full((n,), prior_mean, dtype=x.dtype)
+        sigma2 = torch.full((n,), prior_var,  dtype=x.dtype)
         return mu, sigma2
     return predict_fn

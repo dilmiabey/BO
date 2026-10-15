@@ -3,16 +3,16 @@ src/trial.py
 ============
 Orchestrates a single BO trial (one seed x benchmark x noise x algorithm).
 
-Notation (matching the LaTeX writeup)
--------------------------------------
-  n0    : number of initial observations (warm start) or 0 (cold start)
-  N     : total evaluation budget  (N = n0 + n_iter)
-  n     : current dataset size     (loop variable, n0 <= n < N)
-  D_n   : dataset of n observations {(x_i, y_i)}_{i=1}^n
-  x_{n+1}: next point selected by the acquisition function
+Notation
+--------
+  n0 : initial dataset size (warm start) or 0 (cold start)
+  N  : total evaluation budget  (N = n0 + n_iter)
+  n  : current dataset size     (loop variable, n0 <= n < N)
+  D_n: dataset {(x_i, y_i)}_{i=1}^n
 
-The BO loop runs for n = n0, n0+1, ..., N-1.  At each step the
-algorithm has D_n, selects x_{n+1}, and observes y_{n+1}.
+The GP uses the exact heteroscedastic noise:
+  Lambda_n = diag(rho(x_1), ..., rho(x_n))
+Hyperparameters (output_scale, lengthscale) are fixed throughout.
 """
 
 import torch
@@ -31,19 +31,18 @@ def run_trial(cfg: dict) -> np.ndarray:
 
     Expected keys in cfg
     --------------------
-    benchmark, noise_type, algorithm, seed,
-    start_type, n_init, n_iter,
-    noise_source, reference_sigma,
-    opt_method, n_restarts, lbfgs_steps, n_candidates,
-    gp_train_iter, gp_lr, prior_mean, prior_var,
-    beta_type ("srinivas" | "constant"),
-    beta_value (float, used when beta_type == "constant"),
-    beta_delta (float, used when beta_type == "srinivas")
+    benchmark, noise_type, algorithm, seed
+    start_type ("warm"|"cold"), n_init
+    n_iter
+    noise_source
+    opt_method, n_candidates
+    output_scale, lengthscale    (fixed GP hyperparameters)
+    prior_mean, prior_var        (cold-start first iteration)
+    beta_type ("srinivas"|"constant"), beta_value, beta_delta
 
     Returns
     -------
     f_vals : np.ndarray of shape (n_iter,)
-        Noiseless f(x_{n+1}) recorded at each BO step.
     """
     # ── reproducibility ────────────────────────────────────────────────────
     torch.manual_seed(cfg["seed"])
@@ -51,40 +50,36 @@ def run_trial(cfg: dict) -> np.ndarray:
     rng = np.random.default_rng(cfg["seed"])
 
     # ── resolve components ─────────────────────────────────────────────────
-    f_true   = get_benchmark_fn(cfg["benchmark"])
-    noise_fn = get_noise_fn(
-        benchmark=cfg["benchmark"],
-        noise_type=cfg["noise_type"],
-        source=cfg["noise_source"],
-        reference_sigma=cfg.get("reference_sigma", 1.0),
-    )
+    f_true       = get_benchmark_fn(cfg["benchmark"])
+    noise_fn     = get_noise_fn(cfg["benchmark"], cfg["noise_type"],
+                                cfg["noise_source"])
     optimize_acq = get_optimizer(cfg["opt_method"])
     dim, lo, hi  = get_domain(cfg["benchmark"])
 
-    # ── notation ───────────────────────────────────────────────────────────
-    n0     = cfg["n_init"] if cfg["start_type"] == "warm" else 0
-    n_iter = cfg["n_iter"]
-    N      = n0 + n_iter          # total budget
+    output_scale = cfg.get("output_scale", 1.0)
+    lengthscale  = cfg.get("lengthscale",  1.0)
 
-    beta_type  = cfg.get("beta_type", "srinivas")
-    beta_value = cfg.get("beta_value", 2.0)
-    beta_delta = cfg.get("beta_delta", 0.1)
+    beta_type    = cfg.get("beta_type",  "srinivas")
+    beta_value   = cfg.get("beta_value", 2.0)
+    beta_delta   = cfg.get("beta_delta", 0.1)
 
-    # ── initial design  D_{n0} ─────────────────────────────────────────────
+    n0 = cfg["n_init"] if cfg["start_type"] == "warm" else 0
+    N  = n0 + cfg["n_iter"]
+
+    # ── initial design D_{n0} ─────────────────────────────────────────────
     if n0 > 0:
-        init_x_np = rng.uniform(lo, hi,
-                                size=(n0, dim)).astype(np.float32)
-        train_x = torch.from_numpy(init_x_np)
-        f_init  = f_true(train_x)
-        rho_init = noise_fn(train_x)
-        eps_init = torch.from_numpy(
+        init_x_np = rng.uniform(lo, hi, size=(n0, dim)).astype(np.float32)
+        train_x   = torch.from_numpy(init_x_np)
+        rho_train = noise_fn(train_x)
+        f_init    = f_true(train_x)
+        eps_init  = torch.from_numpy(
             rng.standard_normal(n0).astype(np.float32)
-        ) * torch.sqrt(rho_init)
+        ) * torch.sqrt(rho_train)
         train_y = f_init + eps_init
     else:
-        # Cold start: D_0 = empty
-        train_x = torch.empty(0, dim)
-        train_y = torch.empty(0)
+        train_x   = torch.empty(0, dim)
+        train_y   = torch.empty(0)
+        rho_train = torch.empty(0)
 
     f_vals = []
 
@@ -93,32 +88,28 @@ def run_trial(cfg: dict) -> np.ndarray:
 
         # 1. Build predict function from D_n
         if n == 0:
-            # Cold start first step: no data, use GP prior
+            # Cold start, first step: no data yet — use GP prior
             predict_fn = make_prior_predict_fn(
                 prior_mean=cfg.get("prior_mean", 0.0),
-                prior_var=cfg.get("prior_var", 1.0),
+                prior_var=cfg.get("prior_var",  output_scale),
             )
         else:
-            # Fit GP on the n observations in D_n
+            # Fit GP with exact noise Lambda_n = diag(rho(x_1),...,rho(x_n))
             model, likelihood = fit_gp(
-                train_x, train_y,
-                learn_hyperparams=cfg.get("learn_hyperparams", False),
-                n_iter=cfg.get("gp_train_iter", 50),
-                lr=cfg.get("gp_lr", 0.1),
-                output_scale=cfg.get("output_scale", 1.0),
-                lengthscale=cfg.get("lengthscale", 1.0),
-                noise_var=cfg.get("noise_var", 0.1),
+                train_x, train_y, rho_train,
+                output_scale=output_scale,
+                lengthscale=lengthscale,
             )
             predict_fn = make_gp_predict_fn(model, likelihood)
 
-        # 2. Compute exploration parameter beta_n
-        bo_iteration = n - n0 + 1     # 1-indexed BO iteration count
+        # 2. Compute beta_n
+        bo_iteration = n - n0 + 1
         if beta_type == "constant":
             beta_n = beta_value
         else:
             beta_n = beta_srinivas(bo_iteration, dim=dim, delta=beta_delta)
 
-        # 3. Select x_{n+1} by maximising the acquisition function
+        # 3. Select x_{n+1} = argmax acquisition
         x_next = optimize_acq(
             predict_fn   = predict_fn,
             noise_fn     = noise_fn,
@@ -127,23 +118,22 @@ def run_trial(cfg: dict) -> np.ndarray:
             dim          = dim,
             lo           = lo,
             hi           = hi,
-            n_restarts   = cfg.get("n_restarts", 10),
-            lbfgs_steps  = cfg.get("lbfgs_steps", 100),
             n_candidates = cfg.get("n_candidates", 2000),
             rng          = rng,
-        )  # shape (1, dim)
+        )  # (1, dim)
 
-        # 4. Observe y_{n+1} = f(x_{n+1}) + epsilon_{n+1}
-        f_next   = f_true(x_next)
-        rho_next = noise_fn(x_next)
-        eps_next = torch.from_numpy(
+        # 4. Observe y_{n+1} = f(x_{n+1}) + eps,  eps ~ N(0, rho(x_{n+1}))
+        f_next    = f_true(x_next)
+        rho_next  = noise_fn(x_next)           # shape (1,)
+        eps_next  = torch.from_numpy(
             rng.standard_normal(1).astype(np.float32)
         ) * torch.sqrt(rho_next)
         y_next = f_next + eps_next
 
-        # 5. Record noiseless value and update D_{n+1} = D_n ∪ {(x_{n+1}, y_{n+1})}
+        # 5. Record f(x_{n+1}) and update D_{n+1}
         f_vals.append(float(f_next.squeeze()))
-        train_x = torch.cat([train_x, x_next], dim=0)
-        train_y = torch.cat([train_y, y_next.reshape(1)], dim=0)
+        train_x   = torch.cat([train_x,   x_next],           dim=0)
+        train_y   = torch.cat([train_y,   y_next.reshape(1)], dim=0)
+        rho_train = torch.cat([rho_train, rho_next],          dim=0)
 
     return np.array(f_vals, dtype=np.float32)
