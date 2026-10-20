@@ -51,6 +51,9 @@ export TABPFN_MODEL_CACHE_DIR=$PROJECT_DIR/tabpfn_cache
 export HF_HOME=$PROJECT_DIR/hf_cache
 export HF_HUB_OFFLINE=1
 
+# Fail fast if PyTorch can't see the GPU (e.g. a CPU-only torch wheel)
+python -c "import torch; assert torch.cuda.is_available(), 'CUDA not available to torch'; print('torch', torch.__version__, '->', torch.cuda.get_device_name(0))" || exit 1
+
 python run.py --config $PROJECT_DIR/$CONFIG --seed $SEED
 
 echo "=========================================="
