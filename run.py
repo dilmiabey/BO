@@ -2,10 +2,11 @@
 run.py
 ======
 Reads a YAML config and runs all (benchmark x noise_type x algorithm x seed)
-combinations sequentially, experiments as the outer loop and seeds as inner.
+combinations sequentially.
 
 Usage:
-    python run.py --config configs/cold_candidate_reference_beta2.yaml
+    python run.py --config configs/xxx.yaml                 # all seeds in cfg
+    python run.py --config configs/xxx.yaml --seed 2        # only seed 2
 """
 
 import argparse
@@ -20,6 +21,8 @@ from src.trial import run_trial
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--config", type=str, required=True)
+    parser.add_argument("--seed", type=int, default=None,
+                        help="Run only this seed (overrides cfg.seeds)")
     parser.add_argument("--results_dir", type=str, default=None)
     args = parser.parse_args()
 
@@ -27,10 +30,14 @@ def main():
         cfg = yaml.safe_load(f)
 
     exp_name    = cfg["experiment"]["name"]
-    seeds       = cfg.get("seeds", [0, 1, 2, 3, 4])
     benchmarks  = cfg.get("benchmarks", ["sine", "branin"])
     noise_types = cfg.get("noise_types", ["homo", "hetero"])
     algorithms  = cfg.get("algorithms", ["gpucb", "gpucb_pv"])
+
+    if args.seed is not None:
+        seeds = [args.seed]
+    else:
+        seeds = cfg.get("seeds", [0, 1, 2, 3, 4])
 
     base_dir = args.results_dir or os.path.join("results", exp_name)
     total = len(benchmarks) * len(noise_types) * len(algorithms) * len(seeds)
@@ -50,7 +57,8 @@ def main():
                         print(f"[seed={seed}] SKIP {tag}  [{done}/{total}]")
                         continue
 
-                    print(f"[seed={seed}] START {tag}  [{done+1}/{total}]")
+                    print(f"[seed={seed}] START {tag}  [{done+1}/{total}]",
+                          flush=True)
                     t0 = time.time()
 
                     trial_cfg = {
@@ -79,7 +87,8 @@ def main():
                     done += 1
                     elapsed = time.time() - t0
                     print(f"[seed={seed}] DONE  {tag}  ({elapsed:.1f}s)  "
-                          f"best_f={f_vals.max():.4f}  [{done}/{total}]")
+                          f"best_f={f_vals.max():.4f}  [{done}/{total}]",
+                          flush=True)
 
     print(f"\nExperiment '{exp_name}' complete: {done}/{total} trials.")
 

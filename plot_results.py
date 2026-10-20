@@ -2,10 +2,6 @@
 plot_results.py
 ===============
 Aggregates results for a given experiment config and produces plots.
-
-Usage:
-    python plot_results.py --config configs/lbfgs_warm_current.yaml
-    python plot_results.py --config configs/lbfgs_warm_current.yaml --results_dir results/lbfgs_warm_current
 """
 
 import argparse
@@ -19,12 +15,16 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 ALGO_LABELS = {
-    "gpucb":    "GP-UCB",
-    "gpucb_pv": "GP-UCB-PV",
+    "gpucb":            "GP-UCB",
+    "gpucb_pv":         "GP-UCB-PV",
+    "gpucb_pv_tabpfn":  "GP-UCB-PV (TabPFN-PPD)",
+    "gpucb_tabpfn_clt": "GP-UCB (TabPFN-CLT)",
 }
 ALGO_COLORS = {
-    "gpucb":    "#1f77b4",
-    "gpucb_pv": "#d62728",
+    "gpucb":            "#1f77b4",   # blue
+    "gpucb_pv":         "#d62728",   # red
+    "gpucb_pv_tabpfn":  "#2ca02c",   # green
+    "gpucb_tabpfn_clt": "#9467bd",   # purple
 }
 BENCH_LABELS = {
     "sine":   "Sine Benchmark",
@@ -51,10 +51,8 @@ def load_runs(results_dir: str, seeds: list,
 
 
 def plot_panel(ax, results_dir, seeds, benchmark, noise, algorithms):
-    ax.set_title(
-        f"{BENCH_LABELS[benchmark]}\n{NOISE_LABELS[noise]}",
-        fontsize=11, pad=6
-    )
+    ax.set_title(f"{BENCH_LABELS[benchmark]}\n{NOISE_LABELS[noise]}",
+                 fontsize=11, pad=6)
     for algo in algorithms:
         runs = load_runs(results_dir, seeds, benchmark, noise, algo)
         if runs is None:
@@ -68,8 +66,8 @@ def plot_panel(ax, results_dir, seeds, benchmark, noise, algorithms):
         ax.plot(iters, mean, color=color, linewidth=2.0, label=label)
         ax.fill_between(iters, mean - std, mean + std,
                         color=color, alpha=0.20)
-    ax.set_xlabel("Iteration $t$", fontsize=10)
-    ax.set_ylabel("$f(x_t)$", fontsize=10)
+    ax.set_xlabel("Iteration $i$", fontsize=10)
+    ax.set_ylabel("$f(x_{n+1})$", fontsize=10)
     ax.legend(fontsize=9, loc="lower right")
     ax.grid(True, linestyle="--", linewidth=0.5, alpha=0.6)
     ax.tick_params(labelsize=9)
@@ -79,7 +77,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--config", type=str, required=True)
     parser.add_argument("--results_dir", type=str, default=None)
-    parser.add_argument("--plots_dir", type=str, default=None)
+    parser.add_argument("--plots_dir",   type=str, default=None)
     args = parser.parse_args()
 
     with open(args.config) as f:
@@ -100,13 +98,13 @@ def main():
 
     n_seeds = len(seeds)
 
-    # ── individual plots ───────────────────────────────────────────────────
     for bench in benchmarks:
         for noise in noise_types:
             fig, ax = plt.subplots(figsize=(6, 4))
             plot_panel(ax, results_dir, seeds, bench, noise, algorithms)
+            algo_names = " vs ".join(ALGO_LABELS.get(a, a) for a in algorithms)
             title = (f"{BENCH_LABELS[bench]} — {NOISE_LABELS[noise]}\n"
-                     f"GP-UCB vs GP-UCB-PV  (mean ± std, {n_seeds} seeds)")
+                     f"{algo_names}  (mean ± std, {n_seeds} seeds)")
             fig.suptitle(title, fontsize=10, y=1.02)
             fig.tight_layout()
             fname = f"{bench}_{noise}.png"
@@ -115,20 +113,15 @@ def main():
             plt.close(fig)
             print(f"Saved: {fpath}")
 
-    # ── combined 2x2 ──────────────────────────────────────────────────────
     if len(benchmarks) >= 2 and len(noise_types) >= 2:
         fig, axes = plt.subplots(len(benchmarks), len(noise_types),
                                  figsize=(12, 4 * len(benchmarks)))
-        if len(benchmarks) == 1:
-            axes = [axes]
         for i, bench in enumerate(benchmarks):
             for j, noise in enumerate(noise_types):
                 plot_panel(axes[i][j], results_dir, seeds,
                            bench, noise, algorithms)
-        fig.suptitle(
-            f"{exp_name}  (mean ± std, {n_seeds} seeds)",
-            fontsize=13, y=1.01
-        )
+        fig.suptitle(f"{exp_name}  (mean ± std, {n_seeds} seeds)",
+                     fontsize=13, y=1.01)
         fig.tight_layout()
         combined_path = os.path.join(plots_dir, "all_results_2x2.png")
         fig.savefig(combined_path, dpi=150, bbox_inches="tight")

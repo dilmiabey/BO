@@ -20,3 +20,6 @@ scipy>=1.12           # used by some GPyTorch internals; good to pin
 pyyaml>=6.0
 # Optional but useful on clusters
 tqdm>=4.66            # progress bars if you add them
+
+# TabPFN surrogate (used by gpucb_pv_tabpfn algorithm)
+tabpfn>=2.0
