@@ -6,6 +6,12 @@ Gaussian process model (exact GP, RBF kernel) via GPyTorch.
 Hyperparameters (output_scale, lengthscale) are fixed — not learned.
 The observation noise covariance Lambda_n = diag(rho(x_1),...,rho(x_n))
 is passed in directly, so the GP uses the exact heteroscedastic noise.
+
+Optional y-standardisation (standardize_y=True): the GP is fit on
+(y - m) / s with noise rho / s^2, and predictions are mapped back to the
+original units (mu * s + m, sigma2 * s^2).  The objective and noise are
+unchanged; only the fixed prior (mean 0, output_scale) is applied on a
+unit scale instead of the raw one (Branin values reach ~ -300).
 """
 
 import torch
@@ -33,7 +39,8 @@ def fit_gp(train_x: torch.Tensor,
            train_y: torch.Tensor,
            rho_train: torch.Tensor,
            output_scale: float = 1.0,
-           lengthscale: float = 1.0):
+           lengthscale: float = 1.0,
+           standardize_y: bool = False):
     """
     Build an exact GP with fixed hyperparameters and exact noise covariance.
 
@@ -45,7 +52,15 @@ def fit_gp(train_x: torch.Tensor,
                           used to set Lambda_n = diag(rho(x_1),...,rho(x_n))
     output_scale : sigma_f^2  (fixed)
     lengthscale  : ell        (fixed)
+    standardize_y: fit on standardised y (see module docstring)
     """
+    y_mean, y_std = 0.0, 1.0
+    if standardize_y and train_y.shape[0] >= 2:
+        y_mean = float(train_y.mean())
+        y_std  = float(train_y.std()) if float(train_y.std()) > 1e-8 else 1.0
+    train_y   = (train_y - y_mean) / y_std
+    rho_train = rho_train / y_std ** 2
+
     # GPyTorch's FixedNoiseGaussianLikelihood accepts per-point noise variances
     likelihood = gpytorch.likelihoods.FixedNoiseGaussianLikelihood(
         noise=rho_train,
@@ -58,6 +73,9 @@ def fit_gp(train_x: torch.Tensor,
     model.covar_module.outputscale = output_scale
     model.covar_module.base_kernel.lengthscale = lengthscale
 
+    # Stored so the predict function can map back to original units
+    model.y_mean, model.y_std = y_mean, y_std
+
     model.eval()
     likelihood.eval()
     return model, likelihood
@@ -68,7 +86,8 @@ def make_gp_predict_fn(model, likelihood) -> PredictFn:
     def predict_fn(x: torch.Tensor):
         with gpytorch.settings.fast_pred_var():
             pred = likelihood(model(x))
-        return pred.mean, pred.variance
+        return (pred.mean * model.y_std + model.y_mean,
+                pred.variance * model.y_std ** 2)
     return predict_fn
 
 

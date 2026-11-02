@@ -51,6 +51,14 @@ def run_trial(cfg: dict, log_every: int = 5) -> np.ndarray:
     output_scale = cfg.get("output_scale", 1.0)
     lengthscale  = cfg.get("lengthscale",  1.0)
 
+    standardize_y = cfg.get("standardize_y", False)
+    grid_seed     = cfg["seed"] if cfg.get("seed_grid", False) else None
+    random_ties   = cfg.get("random_ties", False)
+
+    clt_n_estimators = cfg.get("clt_n_estimators", 1)
+    clt_n_perms      = cfg.get("clt_n_perms",      1)
+    clt_start_k      = cfg.get("clt_start_k",      _TABPFN_MIN_POINTS + 1)
+
     beta_type    = cfg.get("beta_type",  "srinivas")
     beta_value   = cfg.get("beta_value", 2.0)
     beta_delta   = cfg.get("beta_delta", 0.1)
@@ -87,19 +95,27 @@ def run_trial(cfg: dict, log_every: int = 5) -> np.ndarray:
         bo_iteration = n - n0 + 1
 
         # 1. Build predict function
-        if n == 0 or (needs_min_points and n < _TABPFN_MIN_POINTS):
+        if (n == 0 or (needs_min_points and n < _TABPFN_MIN_POINTS)
+                or (use_tabpfn_clt and n < clt_start_k)):
             predict_fn = make_prior_predict_fn(
                 prior_mean=cfg.get("prior_mean", 0.0),
                 prior_var=cfg.get("prior_var",  output_scale),
             )
         elif use_tabpfn_clt:
-            predict_fn = make_tabpfn_clt_predict_fn(train_x, train_y)
+            predict_fn = make_tabpfn_clt_predict_fn(
+                train_x, train_y,
+                n_estimators=clt_n_estimators,
+                n_perms=clt_n_perms,
+                start_k=clt_start_k,
+                perm_seed=cfg["seed"] * 100003 + n,
+            )
         elif use_tabpfn_ppd:
             predict_fn = make_tabpfn_predict_fn(train_x, train_y)
         else:
             model, likelihood = fit_gp(
                 train_x, train_y, rho_train,
                 output_scale=output_scale, lengthscale=lengthscale,
+                standardize_y=standardize_y,
             )
             predict_fn = make_gp_predict_fn(model, likelihood)
 
@@ -115,6 +131,7 @@ def run_trial(cfg: dict, log_every: int = 5) -> np.ndarray:
             algorithm=acq_name, beta=beta_n,
             dim=dim, lo=lo, hi=hi,
             n_candidates=cfg.get("n_candidates", 2000),
+            grid_seed=grid_seed, random_ties=random_ties,
             rng=rng,
         )
 

@@ -1,0 +1,35 @@
+# ── Warm start (n0=200), candidate opt, reference noise (Makarova et al.) ──
+#    Compares GP-UCB, GP-UCB-PV, and GP-UCB with TabPFN-CLT uncertainty.
+#    Fairness fixes: GP fit on standardised y, seed-dependent candidate
+#    grid, random tie-breaking in the acquisition argmax.
+#    Constant beta = 2 for all three algorithms (instead of Srinivas).
+experiment:
+  name: "warm200_candidate_reference_tabpfn_clt_fair_beta2"
+  n_iter: 30
+start:
+  type: "warm"
+  n_init: 200
+surrogate:
+  output_scale: 1.0
+  lengthscale: 1.0
+  prior_mean: 0.0
+  prior_var: 1.0
+  standardize_y: true  # GP prior applied on unit scale (Branin reaches ~ -300)
+tabpfn_clt:
+  n_estimators: 4    # TabPFN ensemble members per forward pass
+  n_perms: 4         # orderings of D_n averaged in V_n (1 = original order)
+  start_k: 3         # K1: CLT sum starts here (>= 3), no g_0 needed
+optimization:
+  method: "candidate"
+  n_candidates: 2000
+  seed_grid: true      # candidate set depends on the trial seed
+  random_ties: true    # break exact acquisition ties at random
+noise:
+  source: "reference"
+beta:
+  type: "constant"   # same beta_n = 2.0 at every iteration, all algorithms
+  value: 2.0
+benchmarks: ["sine", "branin"]
+noise_types: ["hetero"]
+algorithms: ["gpucb", "gpucb_pv", "gpucb_tabpfn_clt"]
+seeds: [0, 1, 2, 3, 4]

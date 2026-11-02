@@ -72,13 +72,19 @@ def main():
                         "noise_source": cfg["noise"]["source"],
                         "opt_method":   cfg["optimization"]["method"],
                         "n_candidates": cfg["optimization"].get("n_candidates", 2000),
+                        "seed_grid":    cfg["optimization"].get("seed_grid",   False),
+                        "random_ties":  cfg["optimization"].get("random_ties", False),
                         "output_scale": cfg["surrogate"].get("output_scale", 1.0),
                         "lengthscale":  cfg["surrogate"].get("lengthscale",  1.0),
                         "prior_mean":   cfg["surrogate"].get("prior_mean",   0.0),
                         "prior_var":    cfg["surrogate"].get("prior_var",    1.0),
+                        "standardize_y": cfg["surrogate"].get("standardize_y", False),
                         "beta_type":    cfg["beta"].get("type",  "srinivas"),
                         "beta_value":   cfg["beta"].get("value", 2.0),
                         "beta_delta":   cfg["beta"].get("delta", 0.1),
+                        "clt_n_estimators": cfg.get("tabpfn_clt", {}).get("n_estimators", 1),
+                        "clt_n_perms":      cfg.get("tabpfn_clt", {}).get("n_perms",      1),
+                        "clt_start_k":      cfg.get("tabpfn_clt", {}).get("start_k",      3),
                     }
 
                     f_vals = run_trial(trial_cfg)
