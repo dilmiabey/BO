@@ -85,6 +85,7 @@ def main():
                         "clt_n_estimators": cfg.get("tabpfn_clt", {}).get("n_estimators", 1),
                         "clt_n_perms":      cfg.get("tabpfn_clt", {}).get("n_perms",      1),
                         "clt_start_k":      cfg.get("tabpfn_clt", {}).get("start_k",      3),
+                        "ppd_n_estimators": cfg.get("tabpfn_ppd", {}).get("n_estimators", 1),
                     }
 
                     f_vals = run_trial(trial_cfg)

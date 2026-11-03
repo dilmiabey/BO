@@ -82,10 +82,18 @@ def fit_gp(train_x: torch.Tensor,
 
 
 def make_gp_predict_fn(model, likelihood) -> PredictFn:
-    """Returns a differentiable predict function (x -> (mu, sigma2))."""
+    """
+    Returns a differentiable predict function (x -> (mu, sigma2)).
+
+    sigma2 is the LATENT (epistemic) posterior variance of f(x), without
+    observation noise; GP-UCB-PV adds rho(x) itself in acq_value().
+    model(x) is used rather than likelihood(model(x)): the fixed-noise
+    likelihood would add the TRAINING noise vector whenever x happens to
+    have the same number of rows as the training set.
+    """
     def predict_fn(x: torch.Tensor):
         with gpytorch.settings.fast_pred_var():
-            pred = likelihood(model(x))
+            pred = model(x)
         return (pred.mean * model.y_std + model.y_mean,
                 pred.variance * model.y_std ** 2)
     return predict_fn

@@ -7,6 +7,7 @@ Supported algorithms:
   - "gpucb"            : GP surrogate,              GP-UCB    acquisition
   - "gpucb_pv"         : GP surrogate,              GP-UCB-PV acquisition
   - "gpucb_pv_tabpfn"  : TabPFN surrogate (PPD),    GP-UCB-PV acquisition
+                         (PPD variance = total sigma_n^2 + rho, no rho added)
   - "gpucb_tabpfn_clt" : TabPFN surrogate (CLT),    GP-UCB    acquisition
 """
 
@@ -23,15 +24,22 @@ from optimization.acquisition import beta_srinivas
 from optimization             import get_optimizer
 
 
-_PV_ALGORITHMS         = {"gpucb_pv", "gpucb_pv_tabpfn"}
+_PV_ALGORITHMS         = {"gpucb_pv"}
 _TABPFN_PPD_ALGORITHMS = {"gpucb_pv_tabpfn"}
 _TABPFN_CLT_ALGORITHMS = {"gpucb_tabpfn_clt"}
 _TABPFN_MIN_POINTS     = 2
 
 
 def _acq_name(algorithm: str) -> str:
-    """gpucb_pv variants use PV acquisition; others use plain GP-UCB."""
-    return "gpucb_pv" if algorithm in _PV_ALGORITHMS else "gpucb"
+    """
+    gpucb_pv adds rho to the GP variance; TabPFN-PPD's variance is already
+    the total predictive variance (gpucb_pv_ppd); others use plain GP-UCB.
+    """
+    if algorithm in _PV_ALGORITHMS:
+        return "gpucb_pv"
+    if algorithm in _TABPFN_PPD_ALGORITHMS:
+        return "gpucb_pv_ppd"
+    return "gpucb"
 
 
 def run_trial(cfg: dict, log_every: int = 5) -> np.ndarray:
@@ -58,6 +66,8 @@ def run_trial(cfg: dict, log_every: int = 5) -> np.ndarray:
     clt_n_estimators = cfg.get("clt_n_estimators", 1)
     clt_n_perms      = cfg.get("clt_n_perms",      1)
     clt_start_k      = cfg.get("clt_start_k",      _TABPFN_MIN_POINTS + 1)
+
+    ppd_n_estimators = cfg.get("ppd_n_estimators", 1)
 
     beta_type    = cfg.get("beta_type",  "srinivas")
     beta_value   = cfg.get("beta_value", 2.0)
@@ -110,7 +120,9 @@ def run_trial(cfg: dict, log_every: int = 5) -> np.ndarray:
                 perm_seed=cfg["seed"] * 100003 + n,
             )
         elif use_tabpfn_ppd:
-            predict_fn = make_tabpfn_predict_fn(train_x, train_y)
+            predict_fn = make_tabpfn_predict_fn(
+                train_x, train_y, n_estimators=ppd_n_estimators,
+            )
         else:
             model, likelihood = fit_gp(
                 train_x, train_y, rho_train,

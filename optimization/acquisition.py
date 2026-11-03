@@ -40,13 +40,17 @@ def acq_value(x: torch.Tensor,
     predict_fn(x) -> (mu, sigma2)   # from GP posterior or prior
     noise_fn(x)   -> rho            # aleatoric noise variance
 
-    GP-UCB:     alpha = mu_n + sqrt(beta_n) * sigma_n
-    GP-UCB-PV:  alpha = mu_n + sqrt(beta_n) * sqrt(sigma_n^2 + rho)
+    GP-UCB:        alpha = mu_n + sqrt(beta_n) * sigma_n
+    GP-UCB-PV:     alpha = mu_n + sqrt(beta_n) * sqrt(sigma_n^2 + rho)
+    GP-UCB-PV-PPD: alpha = mu_n + sqrt(beta_n) * sqrt(sigma2)
+                   where predict_fn already returns the total predictive
+                   variance sigma2 ~ sigma_n^2 + rho (e.g. TabPFN's PPD),
+                   so rho is not added again.
     """
     mu, sigma2 = predict_fn(x)
     sqrt_beta = math.sqrt(beta)
 
-    if algorithm == "gpucb":
+    if algorithm in ("gpucb", "gpucb_pv_ppd"):
         acq = mu + sqrt_beta * torch.sqrt(sigma2.clamp(min=1e-12))
     else:  # gpucb_pv
         rho = noise_fn(x)
