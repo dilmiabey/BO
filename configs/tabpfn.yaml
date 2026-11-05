@@ -20,11 +20,11 @@ surrogate:
   prior_var: 1.0
   standardize_y: true  # GP prior applied on unit scale (Branin reaches ~ -300)
 tabpfn_clt:
-  n_estimators: 8    # TabPFN ensemble members per forward pass
+  n_estimators: 16    # TabPFN ensemble members per forward pass
   n_perms: 1         # original data order only
   start_k: 3         # K1: CLT sum starts here (>= 3), no g_0 needed
 tabpfn_ppd:
-  n_estimators: 8    # same ensemble size as the CLT surrogate
+  n_estimators: 16    # same ensemble size as the CLT surrogate
 optimization:
   method: "candidate"
   n_candidates: 2000

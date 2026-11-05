@@ -50,9 +50,39 @@ def load_runs(results_dir: str, seeds: list,
     return np.stack(arrays, axis=0)
 
 
-def plot_panel(ax, results_dir, seeds, benchmark, noise, algorithms):
+def auto_zoom_ylim(lows, highs, pct=10.0, pad_frac=0.05):
+    """Robust y-limits from the mean +/- std bands of all curves.
+
+    Uses the `pct` percentile of the lower band edges and the (100 - pct)
+    percentile of the upper band edges, so isolated spikes (e.g. one bad
+    seed at one iteration) do not stretch the axis. Padded by `pad_frac`.
+    """
+    lo = np.percentile(np.concatenate(lows), pct)
+    hi = np.percentile(np.concatenate(highs), 100.0 - pct)
+    span = hi - lo
+    if span <= 0:
+        span = max(abs(hi), 1.0) * 0.05
+    return lo - pad_frac * span, hi + pad_frac * span
+
+
+def resolve_zoom(cfg_zoom, bench, cli_xlim, cli_ylim):
+    """CLI limits override the per-benchmark `zoom:` section of the config."""
+    bench_cfg = (cfg_zoom or {}).get(bench, {}) or {}
+    xlim = cli_xlim or bench_cfg.get("xlim")
+    ylim = cli_ylim or bench_cfg.get("ylim")
+    return xlim, ylim
+
+
+def plot_panel(ax, results_dir, seeds, benchmark, noise, algorithms,
+               xlim=None, ylim=None, zoom=False, zoom_pct=10.0):
+    """Plot one panel. Returns the list of mean curves that were drawn.
+
+    zoom=True: apply xlim/ylim; if ylim is None, choose it automatically
+    from the mean curves.
+    """
     ax.set_title(f"{BENCH_LABELS[benchmark]}\n{NOISE_LABELS[noise]}",
                  fontsize=11, pad=6)
+    means, lows, highs = [], [], []
     for algo in algorithms:
         runs = load_runs(results_dir, seeds, benchmark, noise, algo)
         if runs is None:
@@ -66,11 +96,22 @@ def plot_panel(ax, results_dir, seeds, benchmark, noise, algorithms):
         ax.plot(iters, mean, color=color, linewidth=2.0, label=label)
         ax.fill_between(iters, mean - std, mean + std,
                         color=color, alpha=0.20)
+        means.append(mean)
+        lows.append(mean - std)
+        highs.append(mean + std)
+    if zoom and means:
+        if xlim is not None:
+            ax.set_xlim(*xlim)
+        if ylim is None:
+            ylim = auto_zoom_ylim(lows, highs, pct=zoom_pct)
+        ax.set_ylim(*ylim)
     ax.set_xlabel("Iteration $i$", fontsize=10)
     ax.set_ylabel("$f(x_{n+1})$", fontsize=10)
-    ax.legend(fontsize=9, loc="lower right")
+    ax.legend(fontsize=9, loc="best" if zoom else "lower right",
+              framealpha=0.8)
     ax.grid(True, linestyle="--", linewidth=0.5, alpha=0.6)
     ax.tick_params(labelsize=9)
+    return means
 
 
 def main():
@@ -78,6 +119,19 @@ def main():
     parser.add_argument("--config", type=str, required=True)
     parser.add_argument("--results_dir", type=str, default=None)
     parser.add_argument("--plots_dir",   type=str, default=None)
+    parser.add_argument("--no_zoom", action="store_true",
+                        help="Do not produce the extra *_zoom.png plots.")
+    parser.add_argument("--zoom_xlim", type=float, nargs=2, default=None,
+                        metavar=("LO", "HI"),
+                        help="x-limits of the zoomed plots (all benchmarks).")
+    parser.add_argument("--zoom_ylim", type=float, nargs=2, default=None,
+                        metavar=("LO", "HI"),
+                        help="y-limits of the zoomed plots (all benchmarks). "
+                             "Default: config `zoom:` section, else automatic.")
+    parser.add_argument("--zoom_pct", type=float, default=10.0,
+                        help="Automatic zoom clips the lowest/highest PCT %% of "
+                             "the mean+/-std band values (default 10). "
+                             "Smaller = wider view.")
     args = parser.parse_args()
 
     with open(args.config) as f:
@@ -88,6 +142,7 @@ def main():
     benchmarks  = cfg.get("benchmarks", ["sine", "branin"])
     noise_types = cfg.get("noise_types", ["homo", "hetero"])
     algorithms  = cfg.get("algorithms", ["gpucb", "gpucb_pv"])
+    cfg_zoom    = cfg.get("zoom", {})   # optional: {bench: {xlim:[..], ylim:[..]}}
 
     results_dir = args.results_dir or os.path.join("results", exp_name)
     if args.plots_dir:
@@ -112,6 +167,21 @@ def main():
             fig.savefig(fpath, dpi=150, bbox_inches="tight")
             plt.close(fig)
             print(f"Saved: {fpath}")
+
+            if args.no_zoom:
+                continue
+            xlim, ylim = resolve_zoom(cfg_zoom, bench,
+                                      args.zoom_xlim, args.zoom_ylim)
+            fig, ax = plt.subplots(figsize=(6, 4))
+            plot_panel(ax, results_dir, seeds, bench, noise, algorithms,
+                       xlim=xlim, ylim=ylim, zoom=True,
+                       zoom_pct=args.zoom_pct)
+            fig.suptitle(title + "  [zoomed]", fontsize=10, y=1.02)
+            fig.tight_layout()
+            zpath = os.path.join(plots_dir, f"{bench}_{noise}_zoom.png")
+            fig.savefig(zpath, dpi=150, bbox_inches="tight")
+            plt.close(fig)
+            print(f"Saved zoomed: {zpath}  (ylim={ax.get_ylim()})")
 
     if len(benchmarks) >= 2 and len(noise_types) >= 2:
         fig, axes = plt.subplots(len(benchmarks), len(noise_types),

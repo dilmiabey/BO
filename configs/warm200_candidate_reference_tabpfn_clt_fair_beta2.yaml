@@ -33,3 +33,8 @@ benchmarks: ["sine", "branin"]
 noise_types: ["hetero"]
 algorithms: ["gpucb", "gpucb_pv", "gpucb_tabpfn_clt"]
 seeds: [0, 1, 2, 3, 4]
+# Optional: fixed limits for the extra *_zoom.png plots (plot_results.py).
+# If omitted, the zoom window is chosen automatically from the mean±std bands.
+# zoom:
+#   branin: {ylim: [-6, 0]}
+#   sine:   {ylim: [0.86, 1.01], xlim: [1, 30]}
