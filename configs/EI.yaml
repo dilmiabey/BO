@@ -1,0 +1,44 @@
+# ── Warm start (n0=50), candidate opt, reference noise (Makarova et al.) ──
+#    Same setup as tabpfn.yaml, but with the expected-improvement acquisition
+#      EI(x) = s(x) phi(z) + (mu_n(x) - mu_n(x+)) Phi(z),  z = (mu_n(x) - mu_n(x+)) / s(x)
+#      x+    = argmax_{x_i in D_n} mu_n(x_i)  (best predictive mean over observed inputs)
+#    Compares four algorithms:
+#      ei               : GP,          EI     s^2 = sigma_n^2
+#      ei_pv            : GP,          EI-PV  s^2 = sigma_n^2 + rho
+#      ei_tabpfn_clt    : TabPFN-CLT,  EI     s^2 = V_bar_n / n
+#      ei_pv_tabpfn     : TabPFN-PPD,  EI-PV  s^2 = PPD variance (already the
+#                         total sigma_n^2 + rho; rho not added)
+#    Same fairness settings as warm200_candidate_reference_tabpfn_clt_fair_beta2
+#    (standardised y for the GP, seed-dependent grid, random ties, beta = 2).
+experiment:
+  name: "EI"
+  n_iter: 30
+start:
+  type: "warm"
+  n_init: 50
+surrogate:
+  output_scale: 1.0
+  lengthscale: 1.0
+  prior_mean: 0.0
+  prior_var: 1.0
+  standardize_y: true  # GP prior applied on unit scale (Branin reaches ~ -300)
+tabpfn_clt:
+  n_estimators: 16    # TabPFN ensemble members per forward pass
+  n_perms: 1         # original data order only
+  start_k: 3         # K1: CLT sum starts here (>= 3), no g_0 needed
+tabpfn_ppd:
+  n_estimators: 16    # same ensemble size as the CLT surrogate
+optimization:
+  method: "candidate"
+  n_candidates: 2000
+  seed_grid: true      # candidate set depends on the trial seed
+  random_ties: true    # break exact acquisition ties at random
+noise:
+  source: "reference"
+beta:                # unused by EI (kept so run.py's cfg["beta"] lookup works)
+  type: "constant"
+  value: 2.0
+benchmarks: ["sine", "branin"]
+noise_types: ["hetero"]
+algorithms: ["ei", "ei_pv", "ei_tabpfn_clt", "ei_pv_tabpfn"]
+seeds: [0, 1, 2, 3, 4]

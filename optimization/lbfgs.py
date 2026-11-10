@@ -8,7 +8,7 @@ and sigmoid reparametrisation for box constraints.
 import math
 import torch
 import numpy as np
-from typing import Callable
+from typing import Callable, Optional
 
 from .acquisition import acq_value
 
@@ -23,6 +23,7 @@ def optimize_lbfgs(predict_fn: Callable,
                    n_restarts: int = 10,
                    lbfgs_steps: int = 100,
                    rng: np.random.Generator = None,
+                   incumbent_x: Optional[torch.Tensor] = None,
                    **kwargs) -> torch.Tensor:
     """
     Maximise the acquisition via L-BFGS with multi-start.
@@ -59,7 +60,8 @@ def optimize_lbfgs(predict_fn: Callable,
             optimiser.zero_grad()
             x_cand = lo + (hi - lo) * torch.sigmoid(u)
             x_cand = x_cand.unsqueeze(0)
-            loss = acq_value(x_cand, predict_fn, noise_fn, algorithm, beta)
+            loss = acq_value(x_cand, predict_fn, noise_fn, algorithm, beta,
+                            incumbent_x=incumbent_x)
             loss.backward()
             return loss
 
@@ -71,7 +73,8 @@ def optimize_lbfgs(predict_fn: Callable,
         with torch.no_grad():
             x_opt = lo + (hi - lo) * torch.sigmoid(u)
             x_opt = x_opt.unsqueeze(0)
-            val = acq_value(x_opt, predict_fn, noise_fn, algorithm, beta)
+            val = acq_value(x_opt, predict_fn, noise_fn, algorithm, beta,
+                            incumbent_x=incumbent_x)
             val = val.item()
 
         if val < best_val:

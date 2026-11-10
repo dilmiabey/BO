@@ -19,12 +19,20 @@ ALGO_LABELS = {
     "gpucb_pv":         "GP-UCB-PV",
     "gpucb_pv_tabpfn":  "GP-UCB-PV (TabPFN-PPD)",
     "gpucb_tabpfn_clt": "GP-UCB (TabPFN-CLT)",
+    "ei":               "EI",
+    "ei_pv":            "EI-PV",
+    "ei_pv_tabpfn":     "EI-PV (TabPFN-PPD)",
+    "ei_tabpfn_clt":    "EI (TabPFN-CLT)",
 }
 ALGO_COLORS = {
     "gpucb":            "#1f77b4",   # blue
     "gpucb_pv":         "#d62728",   # red
     "gpucb_pv_tabpfn":  "#2ca02c",   # green
     "gpucb_tabpfn_clt": "#9467bd",   # purple
+    "ei":               "#1f77b4",   # blue   (same model/variance as gpucb)
+    "ei_pv":            "#d62728",   # red
+    "ei_pv_tabpfn":     "#2ca02c",   # green
+    "ei_tabpfn_clt":    "#9467bd",   # purple
 }
 BENCH_LABELS = {
     "sine":   "Sine Benchmark",
@@ -33,6 +41,7 @@ BENCH_LABELS = {
 NOISE_LABELS = {
     "homo":   "Homoscedastic Noise",
     "hetero": "Heteroscedastic Noise",
+    "zero":   "Zero Noise",
 }
 
 

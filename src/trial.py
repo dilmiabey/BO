@@ -9,6 +9,13 @@ Supported algorithms:
   - "gpucb_pv_tabpfn"  : TabPFN surrogate (PPD),    GP-UCB-PV acquisition
                          (PPD variance = total sigma_n^2 + rho, no rho added)
   - "gpucb_tabpfn_clt" : TabPFN surrogate (CLT),    GP-UCB    acquisition
+  - "ei"               : GP surrogate,              EI        acquisition
+  - "ei_pv"            : GP surrogate,              EI-PV     acquisition
+  - "ei_tabpfn_clt"    : TabPFN surrogate (CLT),    EI        acquisition
+  - "ei_pv_tabpfn"     : TabPFN surrogate (PPD),    EI-PV     acquisition
+                         (PPD variance replaces sigma_n^2 + rho entirely)
+EI incumbent: x^+ = argmax_{x_i in D_n} mu_n(x_i) (best predictive mean over
+the observed inputs), computed with the same surrogate as the candidates.
 """
 
 import time
@@ -24,9 +31,10 @@ from optimization.acquisition import beta_srinivas
 from optimization             import get_optimizer
 
 
-_PV_ALGORITHMS         = {"gpucb_pv"}
-_TABPFN_PPD_ALGORITHMS = {"gpucb_pv_tabpfn"}
-_TABPFN_CLT_ALGORITHMS = {"gpucb_tabpfn_clt"}
+_PV_ALGORITHMS         = {"gpucb_pv", "ei_pv"}
+_TABPFN_PPD_ALGORITHMS = {"gpucb_pv_tabpfn", "ei_pv_tabpfn"}
+_TABPFN_CLT_ALGORITHMS = {"gpucb_tabpfn_clt", "ei_tabpfn_clt"}
+_EI_ALGORITHMS         = {"ei", "ei_pv", "ei_tabpfn_clt", "ei_pv_tabpfn"}
 _TABPFN_MIN_POINTS     = 2
 
 
@@ -34,12 +42,14 @@ def _acq_name(algorithm: str) -> str:
     """
     gpucb_pv adds rho to the GP variance; TabPFN-PPD's variance is already
     the total predictive variance (gpucb_pv_ppd); others use plain GP-UCB.
+    Same mapping for EI: ei_pv / ei_pv_ppd / ei.
     """
+    family = "ei" if algorithm in _EI_ALGORITHMS else "gpucb"
     if algorithm in _PV_ALGORITHMS:
-        return "gpucb_pv"
+        return f"{family}_pv"
     if algorithm in _TABPFN_PPD_ALGORITHMS:
-        return "gpucb_pv_ppd"
-    return "gpucb"
+        return f"{family}_pv_ppd"
+    return family
 
 
 def run_trial(cfg: dict, log_every: int = 5) -> np.ndarray:
@@ -145,6 +155,7 @@ def run_trial(cfg: dict, log_every: int = 5) -> np.ndarray:
             n_candidates=cfg.get("n_candidates", 2000),
             grid_seed=grid_seed, random_ties=random_ties,
             rng=rng,
+            incumbent_x=train_x if algorithm in _EI_ALGORITHMS else None,
         )
 
         # 4. Observe

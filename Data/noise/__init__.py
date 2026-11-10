@@ -16,6 +16,7 @@ from .reference import (
     hetero_noise_sine_reference,
     hetero_noise_branin_reference,
 )
+from .zero import zero_noise
 
 _REGISTRY = {
     # ── current noise models ────────────────────────────────────────────
@@ -26,6 +27,9 @@ _REGISTRY = {
     # ── reference noise models (heteroscedastic only) ───────────────────
     ("reference", "sine",   "hetero"): hetero_noise_sine_reference,
     ("reference", "branin", "hetero"): hetero_noise_branin_reference,
+    # ── noise-free observations ─────────────────────────────────────────
+    ("zero", "sine",   "zero"): zero_noise,
+    ("zero", "branin", "zero"): zero_noise,
 }
 
 

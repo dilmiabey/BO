@@ -55,6 +55,7 @@ def optimize_candidate(predict_fn: Callable,
                        grid_seed: Optional[int] = None,
                        random_ties: bool = False,
                        rng: np.random.Generator = None,
+                       incumbent_x: Optional[torch.Tensor] = None,
                        **kwargs) -> torch.Tensor:
     """
     Maximise the acquisition by evaluating all candidates in one batch
@@ -64,7 +65,8 @@ def optimize_candidate(predict_fn: Callable,
 
     with torch.no_grad():
         # Single batched call — returns negated acquisition for all candidates
-        neg_acq = acq_value(cands, predict_fn, noise_fn, algorithm, beta)
+        neg_acq = acq_value(cands, predict_fn, noise_fn, algorithm, beta,
+                            incumbent_x=incumbent_x)
 
     if random_ties:
         # One rng draw every iteration (even with a single best candidate),
